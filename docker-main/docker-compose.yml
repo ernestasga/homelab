@@ -1,0 +1,254 @@
+version: '3'
+
+volumes:
+  MediaX:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax
+  MediaXDownloads:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/Downloads
+  MediaXMovies:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/Movies
+  MediaXTVShows:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/TVShows
+  MediaXMusic:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/Music
+  MediaXVideos:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/Videos
+  MediaXPhotos:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
+      device: :/volume1/Mediax/Photos
+# Some services are sutup with traefik. Access from anywhere by:
+# https://traefik.<my_subdomain>.duckdns.org
+# https://homeassistant.<my_subdomain>.duckdns.org
+# https://plex.<my_subdomain>.duckdns.org
+
+services:
+   # Prortainer
+  portainer:
+    image: portainer/portainer-ce
+    container_name: portainer
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONTAINER_DATA_PATH}/portainer:/data
+    environment:
+      - TZ=${TZ}
+  # Home Assistant
+  homeassistant:
+    image: homeassistant/home-assistant:stable
+    container_name: homeassistant
+    restart: always
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONTAINER_DATA_PATH}/homeassistant/config:/config
+    environment:
+      - TZ=${TZ}
+  # DuckDNS
+  duckdns:
+    image: linuxserver/duckdns
+    container_name: duckdns
+    restart: always
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+      - SUBDOMAINS=${DUCKDNS_SUBDOMAINS}
+      - TOKEN=${DUCKDNS_TOKEN}
+  # Traefik
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${CONTAINER_DATA_PATH}/traefik/traefik.yml:/traefik.yml:ro
+      - ${CONTAINER_DATA_PATH}/traefik/acme.json:/acme.json
+      - ${CONTAINER_DATA_PATH}/traefik/config.yml:/config.yml:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DUCKDNS_FULL_DOMAIN}`)"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_USER}:${TRAEFIK_PASSWORD}"
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.${DUCKDNS_FULL_DOMAIN}`)"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=duckdns"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=${DUCKDNS_FULL_DOMAIN}"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].sans=*.${DUCKDNS_FULL_DOMAIN}"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+  # Plex
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    restart: unless-stopped
+    volumes:
+      - ${CONTAINER_DATA_PATH}/plex/config:/config
+      - ${CONTAINER_DATA_PATH}/plex/transcode:/transcode
+      - MediaXMovies:/data/movies
+      - MediaXTVShows:/data/tvshows
+      - MediaXMusic:/data/music
+      - MediaXVideos:/data/videos
+      - MediaXPhotos:/data/photos
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+      - VERSION=docker
+  # Jellyfin
+  jellyfin:
+    image: linuxserver/jellyfin
+    container_name: jellyfin
+    restart: unless-stopped
+    volumes:
+      - ${CONTAINER_DATA_PATH}/jellyfin/config:/config
+      - MediaXMovies:/data/movies
+      - MediaXTVShows:/data/tvshows
+      - MediaXMusic:/data/music
+      - MediaXVideos:/data/videos
+      - MediaXPhotos:/data/photos
+    ports:
+      - 8096:8096
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+  # Jellyseerr (Movie & TV Show Catalog) *Media Server*
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    restart: unless-stopped
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+      - LOG_LEVEL=debug
+    ports:
+      - 5055:5055
+    volumes:
+      - ${CONTAINER_DATA_PATH}/jellyseerr:/app/config
+    depends_on:
+      - radarr
+      - sonarr
+  # Radarr (Movies Management) *Media Server*
+  radarr:
+    image: linuxserver/radarr
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONTAINER_DATA_PATH}/radarr:/config
+      - MediaX:/Mediax
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+  # Sonarr (TV Shows Management) *Media Server*
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: sonarr
+    restart: unless-stopped
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONTAINER_DATA_PATH}/sonarr:/config
+      - MediaX:/Mediax
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+  # Prowlarr (Torrent Indexer) *Media Server*
+  prowlarr:
+    image: linuxserver/prowlarr:develop
+    container_name: prowlarr
+    restart: always
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONTAINER_DATA_PATH}/prowlarr:/config
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+  # Transmission
+  transmission:
+    image: linuxserver/transmission
+    container_name: transmission
+    restart: unless-stopped
+    volumes:
+      - ${CONTAINER_DATA_PATH}/transmission:/config
+      - MediaXDownloads:/Mediax/Downloads
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=${TZ}
+      - USER=${TRANSMISSION_USER}
+      - PASS=${TRANSMISSION_PASS}
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+  # Gluetun
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - TZ=${TZ}
+      - VPN_ENDPOINT_IP=${VPN_ENDPOINT_IP}
+      - VPN_ENDPOINT_PORT=${VPN_ENDPOINT_PORT}
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - FIREWALL_VPN_INPUT_PORTS=51413
+    ports:
+      # - 9091:9091/tcp                 # Transmission
+      - 9696:9696                       # Prowlarr
+      # - 7878:7878                     # Radarr
+      # - 8989:8989                     # Sonarr
+      - 51413:51413/tcp
+      - 51413:51413/udp

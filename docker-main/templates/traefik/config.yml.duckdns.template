@@ -1,0 +1,123 @@
+# config.yml
+http:
+  routers:
+    # Portainer
+    portainer:
+      rule: "Host(`portainer.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "portainer-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Home Assistant
+    homeassistant:
+      rule: "Host(`homeassistant.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "homeassistant-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Plex
+    plex:
+      rule: "Host(`plex.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "plex-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Jellyfin
+    jellyfin:
+      rule: "Host(`jellyfin.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "jellyfin-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Jellyseerr
+    jellyseerr:
+      rule: "Host(`jellyseerr.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "jellyseerr-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Radarr
+    radarr:
+      rule: "Host(`radarr.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "radarr-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Sonarr
+    sonarr:
+      rule: "Host(`sonarr.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "sonarr-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # Transmission
+    transmission:
+      rule: "Host(`transmission.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "transmission-service"
+      entryPoints:
+        - "https"
+      tls: {}
+    # 3D Printer
+    3dprinter:
+      rule: "Host(`3dprinter.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "3dprinter-service"
+      entryPoints:
+        - "https"
+      middlewares:
+        - "3dprinter-auth"
+      tls: {}
+
+  middlewares:
+    # 3D Printer
+    3dprinter-auth:
+      basicAuth:
+        users:
+          - "{{_3DPRINTER_AUTH_1}}"
+          - "{{_3DPRINTER_AUTH_2}}"
+
+  services:
+    # Portainer
+    portainer-service:
+      loadBalancer:
+        servers:
+          - url: "http://portainer:9000"
+    # Home Assistant
+    homeassistant-service:
+      loadBalancer:
+        servers:
+          - url: "http://homeassistant:8123"
+    # Plex
+    plex-service:
+      loadBalancer:
+        servers:
+          - url: "http://plex:32400"
+    # Jellyfin
+    jellyfin-service:
+      loadBalancer:
+        servers:
+          - url: "http://jellyfin:8096"
+    # Jellyseerr
+    jellyseerr-service:
+      loadBalancer:
+        servers:
+          - url: "http://jellyseerr:5055"
+    # Radarr
+    radarr-service:
+      loadBalancer:
+        servers:
+          - url: "http://gluetun:7878"
+    # Sonarr
+    sonarr-service:
+      loadBalancer:
+        servers:
+          - url: "http://gluetun:8989"
+    # Transmission
+    transmission-service:
+      loadBalancer:
+        servers:
+          - url: "http://gluetun:9091"
+    # 3D Printer
+    3dprinter-service:
+      loadBalancer:
+        servers:
+          - url: "http://{{_3DPRINTER_IP}}"
