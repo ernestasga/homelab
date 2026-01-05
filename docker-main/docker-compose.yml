@@ -43,6 +43,8 @@ volumes:
       type: nfs
       o: addr=${MEDIA_NAS_IP},nolock,rw,soft,nfsvers=4
       device: :/volume1/Mediax/Photos
+  n8n_data:
+  n8n_files:
 # Some services are sutup with traefik. Access from anywhere by:
 # https://traefik.<my_subdomain>.duckdns.org
 # https://homeassistant.<my_subdomain>.duckdns.org
@@ -252,3 +254,18 @@ services:
       # - 8989:8989                     # Sonarr
       - 51413:51413/tcp
       - 51413:51413/udp
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/home/node/files
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12

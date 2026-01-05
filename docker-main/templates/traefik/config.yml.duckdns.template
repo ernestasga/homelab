@@ -66,6 +66,13 @@ http:
       middlewares:
         - "3dprinter-auth"
       tls: {}
+    # n8n
+    n8n:
+      rule: "Host(`n8n.{{DUCKDNS_FULL_DOMAIN}}`)"
+      service: "n8n-service"
+      entryPoints:
+        - "https"
+      tls: {}      
 
   middlewares:
     # 3D Printer
@@ -121,3 +128,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{_3DPRINTER_IP}}"
+    # n8n
+    n8n-service:
+      loadBalancer:
+        servers:
+          - url: "http://n8n:5678"
